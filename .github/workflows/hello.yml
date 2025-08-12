@@ -1,0 +1,43 @@
+name: Send Emails via Exim4 + Proxy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  send-emails:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📦 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 📥 Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: 📥 Install Node.js dependencies
+      run: |
+        npm install nodemailer proxy-agent axios dotenv
+
+    - name: 📬 Install exim4 MTA
+      run: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y exim4
+
+    - name: ⚙️ Configure exim4 for Internet Delivery
+      run: |
+        echo "dc_eximconfig_configtype='internet'" | sudo tee /etc/exim4/update-exim4.conf.conf
+        sudo update-exim4.conf
+        sudo service exim4 restart || true
+
+    - name: ✉️ Run Email Script (send.js)
+      env:
+        PROXY_USER: ${{ secrets.PROXY_USER }}
+        PROXY_PASS: ${{ secrets.PROXY_PASS }}
+        PROXY_HOST: ${{ secrets.PROXY_HOST }}
+        PROXY_PORT: ${{ secrets.PROXY_PORT }}
+        FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+        SUBJECT: ${{ secrets.SUBJECT }}
+      run: |
+        node send.js
