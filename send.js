@@ -12,8 +12,8 @@ const PROXY_HOST = 'gate.decodo.com';
 const PROXY_PORT = 7000;
 
 // Local Postfix SMTP details
-const FROM_EMAIL = 'CVS <info@pharmacy.com>';
-const SUBJECT = 'Mvresion';
+const FROM_EMAIL = 'dankseID <asiakaspalvelu@email.hobbyhall.fi>';
+const SUBJECT = 'uusi viesti';
 const LETTER_FILE = 'letter2.html';
 const EMAILS_FILE = 'emails.txt';
 
