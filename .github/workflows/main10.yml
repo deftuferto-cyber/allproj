@@ -1,0 +1,86 @@
+name: Send Emails via Exim4 + Proxy + DKIM (clé intégrée)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  send-emails:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📦 Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: 📥 Install Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+
+    - name: 📥 Install Node.js dependencies
+      run: |
+        npm install nodemailer proxy-agent axios dotenv
+
+    - name: 📬 Install exim4 MTA
+      run: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y exim4
+
+    - name: ⚙️ Configure exim4 for Internet Delivery + DKIM
+      run: |
+        echo "dc_eximconfig_configtype='internet'" | sudo tee /etc/exim4/update-exim4.conf.conf
+        echo "dc_readhost='kmbc-haarlem.nl'" | sudo tee -a /etc/exim4/update-exim4.conf.conf
+
+        # Config DKIM
+        sudo bash -lc "cat >/etc/exim4/conf.d/main/00_local_macros <<'EOF'
+        dkim_domain = kmbc-haarlem.nl
+        dkim_selector = mail2025
+        dkim_private_key = /etc/exim4/dkim_private.key
+        EOF"
+
+        # Injecter la clé privée DKIM
+        cat > /etc/exim4/dkim_private.key <<'EOF'
+-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAwVCDauUgEjLXOguy0eww8wRoY+i6x10yL45ZWQvt1IoTRfNL
+f+wAdwkN1KVSD5cqyF0AkX2RY+6oL+v7VnYf7h8GwvWLTI6blBWa2ibbTxy4HD2H
+7lQmpris/FOemMOsoiru6ZOpfSA1JJNL2Rv/oDzzqF59PqYd7kC0dE42LR6E5ONb
+N5hvNmDfHx/6PQTA9zj1yhzCX6K9ph711BYy8xP3wG30MSeiq8gEKBZSsx/h4ELR
+RkGr2jA0IbqGSWTMPvstOSzz7Yw7pmwBA7Nce8+CZVtlC/rtD9oiIrLPV1sCUYsA
+ULGzmBtlQpai8ONG2lvIJZWkd9Ybq556gPb0tQIDAQABAoIBAAFg2AvTzGLObmQl
+n708W4qWbahgs9B78Y5kUAg8s3hEiVsKyeavQZ0PH6q4iKHZSomIHHz+Iu9OM3Bi
+bkbtEiYkryeXOtugi5o50s8FpE0wCDt72NOHc806xmKRpLmjCvyGWF93KmO6mP3e
+Xi95fuWOC9TTa1/8G+N0psfstPcctcB6FwUsLCQ+2KBQq5+i8sXt3KFsj8yOi6nx
+ZYvxHjJyvMswlgWgobFb2C7F7CHLQzYiDcqQriDjrVhQRuFxBWzPDeIiT2+51rW1
+9TQtiXe3ZkswoeXdgrZTusnqdAtie7y0VbnU4NUPzENj6hv+kX4jHLmJ1A1lkhmN
+ipMzVTUCgYEA5043pgjVimdN1GHDrcPwtluUrqS2B1oiZU8/BHq2H9+NpZmqDBWP
+u+ffNsHPMaSVtcgU8F6WYxBh5Avw6fGGuLc3MV9zmMREFK5ZLRjXSri4TFVjfJbw
+/ZpS83y77stv3/BRnVWXTe8tF334OTyAnSWOsRCXf3bVTr8DMqETFZMCgYEA1fP3
+xYLq72QjLtjY2B7XeoNVcZO1nFla+B83ASlPapInhFbhC/epEziHpI427X5YGB40
+3BLD7G9COQG5QDyZ2UHjKWcmeIspq9YRmKMMZyCFG5Z98PNMmtkIx9fxfkZhAUuZ
+SITfAodih3uxDxB1IhHThWULJv+/qTVp8G4quZcCgYAuICXuwUI8KF+X46sO4s0E
+wHyE2ynFi47iXww1C3d4Ia9wf5UudbpFAXc8xydXQffs2Sp7yJD6zlCHFm6DaHuy
+KC8kdGFr7G+bJC16VcLRDscJydleBgemuvihv5UGiKEVqinMUz4p93EphyBR4aPQ
+MqYi3ykm7P6ahnLPzNkuawKBgFLfSgTGPgv2BK67rdqgr6QzxN/WcA0ci2D6bkrT
+3oAQFqBrKoaBKotYZSn3MA1z19mXsa/g0OT+/26nXUMldg4yODQsUTl15fE6XNx7
+o206qnRSKXwwMWb1VDJcUZ0w05g12Sy+0sbe++ownheQr14/+2d7CQPVIj7/goZv
+lbsHAoGBALu8lnQi36AkUkkHipRCY3L/1G07JU317fBsh7EuyBmRjOgHgoZLtX7L
+zAAyxi75GMR/9W7a4ExqNaso2qs1BN+96fIG+jLIMWfulGXrJzqv3v0hkB/S8Nr9
+3GUe6oihkUUbqKUabT8KjUs9PnQVAp3NMRCYas2C6EZQcwggR5Kd
+-----END RSA PRIVATE KEY-----
+EOF
+
+        sudo chown root:Debian-exim /etc/exim4/dkim_private.key
+        sudo chmod 640 /etc/exim4/dkim_private.key
+
+        sudo update-exim4.conf
+        sudo service exim4 restart || true
+
+    - name: ✉️ Run Email Script (send.js)
+      env:
+        PROXY_USER: ${{ secrets.PROXY_USER }}
+        PROXY_PASS: ${{ secrets.PROXY_PASS }}
+        PROXY_HOST: ${{ secrets.PROXY_HOST }}
+        PROXY_PORT: ${{ secrets.PROXY_PORT }}
+        FROM_EMAIL: ${{ secrets.FROM_EMAIL }}   # ex: noreply@kmbc-haarlem.nl
+        SUBJECT: ${{ secrets.SUBJECT }}
+      run: |
+        node send.js
